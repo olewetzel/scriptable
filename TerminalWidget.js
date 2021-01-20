@@ -20,9 +20,9 @@ const COLORS = {
   bg1: '#1c1c1c',
   personalCalendar: '#5BD2F0',
   workCalendar: '#9D90FF',
+  familyCalendar: '#FF6663',
   weather: '#FDFD97',
-  location: '#FEB144',
-  period: '#FF6663',
+  location: '#FEB144',  
   deviceStats: '#7AE7B9',
 };
 
@@ -31,8 +31,7 @@ const NAME = 'TODO';
 const WEATHER_API_KEY = 'TODO';
 const WORK_CALENDAR_NAME = 'TODO';
 const PERSONAL_CALENDAR_NAME = 'TODO';
-const PERIOD_CALENDAR_NAME = 'TODO';
-const PERIOD_EVENT_NAME = 'TODO';
+const FAMILY_CALENDAR_NAME = 'TODO';
 
 // Whether or not to use a background image for the widget (if false, use gradient color)
 const USE_BACKGROUND_IMAGE = false;
@@ -143,20 +142,20 @@ function createWidget(data) {
   nextWorkCalendarEventLine.textColor = new Color(COLORS.workCalendar);
   nextWorkCalendarEventLine.font = new Font(FONT_NAME, FONT_SIZE);
 
-  // Line 4 - Weather
+  // Line 4 - Next Family Calendar Event
+  const nextFamilyCalendarEventLine = stack.addText(`🗓 | ${getCalendarEventTitle(data.nextFamilyEvent, true)}`);
+  nextFamilyCalendarEventLine.textColor = new Color(COLORS.familyCalendar);
+  nextFamilyCalendarEventLine.font = new Font(FONT_NAME, FONT_SIZE);
+ 
+  // Line 5 - Weather
   const weatherLine = stack.addText(`${data.weather.icon} | ${data.weather.temperature}° (${data.weather.high}°-${data.weather.low}°), ${data.weather.description}, feels like ${data.weather.feelsLike}°`);
   weatherLine.textColor = new Color(COLORS.weather);
   weatherLine.font = new Font(FONT_NAME, FONT_SIZE);
   
-  // Line 5 - Location
+  // Line 6 - Location
   const locationLine = stack.addText(`📍 | ${data.weather.location}`);
   locationLine.textColor = new Color(COLORS.location);
   locationLine.font = new Font(FONT_NAME, FONT_SIZE);
-
-  // Line 6 - Period
-  const periodLine = stack.addText(`🩸 | ${data.period}`);
-  periodLine.textColor = new Color(COLORS.period);
-  periodLine.font = new Font(FONT_NAME, FONT_SIZE);
 
   // Line 7 - Various Device Stats
   const deviceStatsLine = stack.addText(`📊 | ⚡︎ ${data.device.battery}%, ☀ ${data.device.brightness}%`);
@@ -176,10 +175,8 @@ async function fetchData() {
   // Get next work/personal calendar events
   const nextWorkEvent = await fetchNextCalendarEvent(WORK_CALENDAR_NAME);
   const nextPersonalEvent = await fetchNextCalendarEvent(PERSONAL_CALENDAR_NAME);
-
-  // Get period data
-  const period = await fetchPeriodData();
-
+  const nextFamilyEvent = await fetchNextCalendarEvent(FAMILYL_CALENDAR_NAME);
+ 
   // Get last data update time (and set)
   const lastUpdated = await getLastUpdated();
   cache.write(CACHE_KEY_LAST_UPDATED, new Date().getTime());
@@ -188,7 +185,7 @@ async function fetchData() {
     weather,
     nextWorkEvent,
     nextPersonalEvent,
-    period,
+    nextFamilyEvent,
     device: {
       battery: Math.round(Device.batteryLevel() * 100),
       brightness: Math.round(Device.screenBrightness() * 100),
@@ -247,11 +244,11 @@ async function fetchWeather() {
     location: cityState,
     icon: getWeatherEmoji(data.current.weather[0].id, isNight),
     description: data.current.weather[0].main,
-    temperature: Math.round(data.current.temp),
+    temperature: Math.round((data.current.temp-32)*5/9),
     wind: Math.round(data.current.wind_speed),
-    high: Math.round(data.daily[0].temp.max),
-    low: Math.round(data.daily[0].temp.min),
-    feelsLike: Math.round(data.current.feels_like),
+    high: Math.round((data.daily[0].temp.max-32)*5/9),
+    low: Math.round((data.daily[0].temp.min-32)*5/9),
+    feelsLike: Math.round((data.current.feels_like-32)*5/9),
   }
 }
 
@@ -330,7 +327,7 @@ async function fetchNextCalendarEvent(calendarName) {
  */
 function getCalendarEventTitle(calendarEvent, isWorkEvent) {
   if (!calendarEvent) {
-    return `No upcoming ${isWorkEvent ? 'work ' : ''}events`;
+    return `keine Termine ${isWorkEvent ? ' auf der Arbeit' : ''}`;
   }
 
   const timeFormatter = new DateFormatter();
@@ -341,31 +338,6 @@ function getCalendarEventTitle(calendarEvent, isWorkEvent) {
   const eventTime = new Date(calendarEvent.startDate);
 
   return `[${timeFormatter.string(eventTime)}] ${calendarEvent.title}`;
-}
-
-/**
- * Fetch data from the Period calendar and determine number of days until period start/end.
- */
-async function fetchPeriodData() {
-  const periodCalendar = await Calendar.forEventsByTitle(PERIOD_CALENDAR_NAME);
-  const events = await CalendarEvent.between(new Date(), new Date().addDays(30), [periodCalendar]);
-
-  console.log(`Got ${events.length} period events`);
-
-  const periodEvent = events.filter(e => e.title === PERIOD_EVENT_NAME)[0];
-
-  if (periodEvent) {
-    const current = new Date().getTime();
-    if (new Date(periodEvent.startDate).getTime() <= current && new Date(periodEvent.endDate).getTime() >= current) {
-      const timeUntilPeriodEndMs = new Date(periodEvent.endDate).getTime() - current;
-      return `${Math.round(timeUntilPeriodEndMs / 86400000)} days until period ends`; ;
-    } else {
-      const timeUntilPeriodStartMs = new Date(periodEvent.startDate).getTime() - current;
-      return `${Math.round(timeUntilPeriodStartMs / 86400000)} days until period starts`; 
-    }
-  } else {
-    return 'Unknown period data';
-  }
 }
 
 //-------------------------------------
